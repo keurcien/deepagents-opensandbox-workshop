@@ -18,11 +18,11 @@ from opensandbox_backend import OpenSandboxBackend
 #     command or a Python one-liner over the file and get the answer in one
 #     call, instead of reading 100 000 lines through the context window.
 #
-# Setup, on top of page 5:
-#   - an OpenSandbox server, e.g. locally:
-#       uvx opensandbox-server init-config ~/.sandbox.toml --example docker
-#       OPENSANDBOX_INSECURE_SERVER=YES uvx opensandbox-server   # or set server.api_key in the toml
-#   - OPENSANDBOX_DOMAIN / OPENSANDBOX_API_KEY in .env if not localhost:8080 / no key
+# Setup, on top of page 5: an OpenSandbox server on localhost:8080, started
+# from the repo's Dockerfile:
+#   docker build -t opensandbox-server . && docker run -d --rm -p 8080:8080 \
+#       -v /var/run/docker.sock:/var/run/docker.sock \
+#       -e OPENSANDBOX_INSECURE_SERVER=YES --name opensandbox opensandbox-server
 
 
 async def main():
@@ -47,7 +47,7 @@ async def main():
         }
     }
 
-    backend = OpenSandboxBackend.create()  # starts a python:3.12-slim container
+    backend = OpenSandboxBackend()  # starts a python:3.12-slim container
     print("Sandbox:", backend.id)
 
     try:
@@ -74,7 +74,7 @@ async def main():
 
             print("\nFinal answer:", response["messages"][-1].content)
     finally:
-        backend.close()
+        backend.sandbox.destroy()
 
 
 if __name__ == "__main__":

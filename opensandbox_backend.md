@@ -55,19 +55,14 @@ on a laptop, not on a shared machine.
 One consequence of running the server in a container: it reports sandbox
 addresses on Docker's internal bridge network, which macOS cannot reach. The
 SDK must then route sandbox traffic through the server instead of connecting
-directly. The backend does not expose that switch yet, so add
-`use_server_proxy=True` to the connection config in `OpenSandboxBackend.create`:
+directly. That is the `use_server_proxy=True` in the backend's `SERVER`
+constant:
 
 ```python
-config = ConnectionConfigSync(
-    domain=...,
-    api_key=...,
-    protocol=...,
-    use_server_proxy=True,   # required when the server runs in a container
-)
+SERVER = ConnectionConfigSync(domain="localhost:8080", use_server_proxy=True)
 ```
 
-Without it, `create()` fails after 30 seconds with
+Without it, `OpenSandboxBackend()` fails after 30 seconds with
 `SandboxReadyTimeoutException: Sandbox health check timed out`.
 
 ### Option B: on the host with uvx (blocked by a packaging bug right now)
@@ -94,40 +89,35 @@ The server is up when this returns a JSON object whose `items` array is empty.
 
 ## Step 2: point the backend at the server
 
-The backend reads its connection settings from the environment. Put them in
-`.env` next to `DEEPSEEK_API_KEY` if they differ from the defaults.
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `OPENSANDBOX_DOMAIN` | `localhost:8080` | `host:port` of the server |
-| `OPENSANDBOX_API_KEY` | unset | Sent when the server has `server.api_key` |
-| `OPENSANDBOX_USE_SERVER_PROXY` | unset | `1` when the server runs in Docker (see Dockerfile): sandbox traffic then goes through the server |
+The backend has one constant, `SERVER`, set for the Dockerfile above:
+`localhost:8080`, no API key, traffic proxied through the server. Edit it if
+your server lives elsewhere or requires a key (`api_key=`).
 
 ## Step 3: first contact
 
 ```python
 from opensandbox_backend import OpenSandboxBackend
 
-backend = OpenSandboxBackend.create()
+backend = OpenSandboxBackend()
 try:
     print(backend.id)
     print(backend.execute("uname -a && python3 --version").output)
 finally:
-    backend.close()
+    backend.sandbox.destroy()
 ```
 
 What happens:
 
-1. `create()` asks the server for a `python:3.12-slim` container and blocks
+1. The constructor asks the server for a `python:3.12-slim` container and blocks
    until the container's agent answers a health check. The first run pulls
    the image plus OpenSandbox's `execd` helper image and takes a minute or
    two. After that, a few seconds.
-2. `close()` destroys the container.
+2. `backend.sandbox.destroy()` destroys the container.
 
 Two timeouts are involved, and they are easy to confuse:
 
-- **Lifetime** is the `timeout` passed to `SandboxSync.create`, 30 minutes
-  in this backend. When it elapses the server kills the sandbox on its own.
+- **Lifetime** is the `timeout` passed to `SandboxSync.create`, 10 minutes
+  (the SDK default). When it elapses the server kills the sandbox on its own.
   This is the safety net for sandboxes you forgot to close.
 - **Ready timeout** is how long `SandboxSync.create` waits for the health
   check, 30 seconds by default in the SDK. Pass `ready_timeout=timedelta(...)`
@@ -151,7 +141,7 @@ and Python snippets through `execute`.
 Try the whole surface once:
 
 ```python
-backend = OpenSandboxBackend.create()
+backend = OpenSandboxBackend()
 try:
     backend.upload_files([
         ("/workspace/data/a.txt", b"line1\nline2\n"),
@@ -164,7 +154,7 @@ try:
     print(backend.edit("/workspace/data/b.txt", "x=1", "x=2"))
     print(backend.execute("cat /workspace/data/b.txt").output)   # x=2
 finally:
-    backend.close()
+    backend.sandbox.destroy()
 ```
 
 Every method has an `a`-prefixed async twin (`aexecute`, `aread`, ...), which
@@ -173,12 +163,12 @@ deepagents uses when the agent is invoked with `ainvoke`.
 ## Step 5: plug it into a deep agent
 
 ```python
-backend = OpenSandboxBackend.create()
+backend = OpenSandboxBackend()
 try:
     agent = create_deep_agent(model=model, tools=tools, backend=backend)
     response = await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]})
 finally:
-    backend.close()
+    backend.sandbox.destroy()
 ```
 
 Compared with the in-memory backend of page 6, two things change:
@@ -204,22 +194,20 @@ can watch the offload and the `execute` call happen.
 
 ## Step 6: customizing the sandbox
 
-`create()` only takes an image. For anything else, call the SDK yourself and
-wrap the result, which is all `create()` does:
+The constructor only takes an image. For anything else, extend the
+`SandboxSync.create` call in `__init__`. The useful keywords:
 
 ```python
 from datetime import timedelta
-from opensandbox import SandboxSync
 
-sandbox = SandboxSync.create(
-    "python:3.12-slim",                 # any image with python3
-    connection_config=config,           # same ConnectionConfigSync as in create()
-    timeout=timedelta(hours=2),         # lifetime
+SandboxSync.create(
+    image,                              # any image with python3
+    connection_config=SERVER,
+    timeout=timedelta(hours=2),         # lifetime, 10 minutes by default
     ready_timeout=timedelta(minutes=3), # patience for the first pull
     env={"PYTHONUNBUFFERED": "1"},      # environment inside the container
     metadata={"owner": "volcamp"},      # free-form labels, visible on the server
 )
-backend = OpenSandboxBackend(sandbox)
 ```
 
 Picking another image:
@@ -236,7 +224,7 @@ Picking another image:
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `Connection refused` on `create()` | No server on `OPENSANDBOX_DOMAIN` | Start one (step 1) or fix the variable |
+| `Connection refused` on `OpenSandboxBackend()` | No server on `localhost:8080` | Start one (step 1) or edit `SERVER` |
 | Server refuses to start | No `server.api_key` in the config | Set one, or `OPENSANDBOX_INSECURE_SERVER=YES` locally |
 | `ModuleNotFoundError: ... fast_sandbox.generated` | Broken 1.1.0 wheel on PyPI | Use the Dockerfile (option A) |
 | `SandboxReadyTimeoutException` with the Docker server | SDK connects to a bridge IP macOS cannot reach | `use_server_proxy=True` in the connection config |
@@ -244,7 +232,7 @@ Picking another image:
 | `read` or `glob` fail with a Python traceback | Image has no `python3` | Use `python:3.12-slim` or install it |
 | Containers pile up in `docker ps` | Backend never closed | Close in `finally`, or wait for the lifetime timeout |
 | `execute` returns exit code -1 | Command hit its `timeout` | Raise it, or split the work |
-| Authentication error from the server | `server.api_key` set, `OPENSANDBOX_API_KEY` not | Export the key |
+| Authentication error from the server | `server.api_key` set, no `api_key` in `SERVER` | Add it to the constant |
 
 To clean up stray sandboxes by hand:
 

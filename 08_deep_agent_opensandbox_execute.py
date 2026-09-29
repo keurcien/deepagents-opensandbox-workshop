@@ -8,7 +8,7 @@ Run:
     docker build -t opensandbox-server . && docker run -d --rm -p 8080:8080 \\
         -v /var/run/docker.sock:/var/run/docker.sock \\
         -e OPENSANDBOX_INSECURE_SERVER=YES --name opensandbox opensandbox-server
-    OPENSANDBOX_USE_SERVER_PROXY=1 uv run --env-file .env python 08_deep_agent_opensandbox_execute.py
+    uv run --env-file .env python 08_deep_agent_opensandbox_execute.py
 """
 
 import os
@@ -53,7 +53,7 @@ def main() -> None:
         api_key=os.getenv("DEEPSEEK_API_KEY"),
     )
 
-    backend = OpenSandboxBackend.create()  # python:3.12-slim, 30 min lifetime
+    backend = OpenSandboxBackend()  # python:3.12-slim, 10 min lifetime
     print("Sandbox:", backend.id)
 
     try:
@@ -79,7 +79,7 @@ def main() -> None:
         head = backend.execute("head -3 /workspace/orders.csv").output
         print("\nFirst lines of the file, fetched from the sandbox:\n" + head)
     finally:
-        backend.close()  # destroy the container; otherwise it lives until the lifetime timeout
+        backend.sandbox.destroy()  # otherwise the container lives until the lifetime timeout
         print("\nSandbox destroyed.")
 
 

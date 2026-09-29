@@ -16,8 +16,9 @@ docker build -t opensandbox-server . && docker run -d --rm -p 8080:8080 \
     -e OPENSANDBOX_INSECURE_SERVER=YES --name opensandbox opensandbox-server
 ```
 
-Because the server runs in a container, clients must set
-`OPENSANDBOX_USE_SERVER_PROXY=1` so sandbox traffic goes through the server.
+Because the server runs in a container, the backend routes sandbox traffic
+through the server (`use_server_proxy=True`) rather than connecting to the
+sandbox directly.
 
 ## 1. Know the contract before writing code
 
@@ -53,45 +54,36 @@ grep -n "@abstractmethod" -A2 .venv/lib/python3.11/site-packages/deepagents/back
 
 ## 2. Create a sandbox and expose its id
 
-Connection settings come from the environment so the same code works against
-a local server or a hosted one.
+The constructor starts the container. The server address is a constant,
+since everyone in the workshop runs the same Dockerfile.
 
 ```python
+SERVER = ConnectionConfigSync(domain="localhost:8080", use_server_proxy=True)
+
+
 class OpenSandboxBackend(BaseSandbox):
-    def __init__(self, sandbox: SandboxSync) -> None:
-        self._sandbox = sandbox
-
-    @classmethod
-    def create(cls, image: str = "python:3.12-slim") -> "OpenSandboxBackend":
-        config = ConnectionConfigSync(
-            domain=os.getenv("OPENSANDBOX_DOMAIN", "localhost:8080"),
-            api_key=os.getenv("OPENSANDBOX_API_KEY"),
-            use_server_proxy=os.getenv("OPENSANDBOX_USE_SERVER_PROXY") == "1",
-        )
-        return cls(SandboxSync.create(image, connection_config=config, timeout=timedelta(minutes=30)))
-
-    def close(self) -> None:
-        self._sandbox.destroy()
+    def __init__(self, image: str = "python:3.12-slim") -> None:
+        self.sandbox = SandboxSync.create(image, connection_config=SERVER)
 
     @property
     def id(self) -> str:
-        return self._sandbox.id
+        return self.sandbox.id
 ```
 
 `SandboxSync.create` blocks until the container answers a health check. The
-`timeout` is the sandbox lifetime, after which the server kills it on its own.
-The first run pulls two images and takes a while. After that, about ten
-seconds.
+first run pulls two images and takes a while. After that, about ten seconds.
+The SDK gives each sandbox a 10-minute lifetime, after which the server kills
+it on its own. Destroy it earlier with `backend.sandbox.destroy()`.
 
 ## 3. `execute`: run a command, hand back one text and an exit code
 
-The SDK call is `self._sandbox.commands.run(command, opts=...)`. It returns an
+The SDK call is `self.sandbox.commands.run(command, opts=...)`. It returns an
 `Execution` with `logs.stdout`, `logs.stderr` and `exit_code`.
 
 ```python
     def execute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
         opts = RunCommandOpts(timeout=timedelta(seconds=timeout)) if timeout else None
-        execution = self._sandbox.commands.run(command, opts=opts)
+        execution = self.sandbox.commands.run(command, opts=opts)
         lines = [m.text for m in execution.logs.stdout] + [m.text for m in execution.logs.stderr]
         return ExecuteResponse(output="\n".join(lines), exit_code=execution.exit_code or 0)
 ```
@@ -119,7 +111,7 @@ directories on its own.
 
 ```python
     def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
-        self._sandbox.files.write_files([WriteEntry(path=path, data=data) for path, data in files])
+        self.sandbox.files.write_files([WriteEntry(path=path, data=data) for path, data in files])
         return [FileUploadResponse(path=path) for path, _ in files]
 ```
 
@@ -137,7 +129,7 @@ print(backend.upload_files([("/workspace/data/a.txt", b"line1\nline2\n")]))
 
 ```python
     def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
-        return [FileDownloadResponse(path=path, content=self._sandbox.files.read_bytes(path)) for path in paths]
+        return [FileDownloadResponse(path=path, content=self.sandbox.files.read_bytes(path)) for path in paths]
 ```
 
 deepagents uses this at startup to read `SKILL.md` and `AGENTS.md` files
@@ -158,7 +150,7 @@ Nothing more to write. Run the whole surface once to be sure the image and
 the output format cooperate:
 
 ```python
-backend = OpenSandboxBackend.create()
+backend = OpenSandboxBackend()
 try:
     backend.upload_files([("/workspace/data/a.txt", b"line1\nline2\n"), ("/workspace/data/b.txt", b"x=1\n")])
     print(backend.ls("/workspace/data"))
@@ -167,7 +159,7 @@ try:
     print(backend.glob("**/*.txt", path="/workspace"))
     print(backend.edit("/workspace/data/b.txt", "x=1", "x=2"))
 finally:
-    backend.close()
+    backend.sandbox.destroy()
 ```
 
 If `grep` returns one match whose text contains a NUL byte, or `glob` complains
@@ -176,7 +168,7 @@ about "unexpected output", go back to step 3: lines are being glued together.
 ## 7. Plug it into the deep agent
 
 ```python
-backend = OpenSandboxBackend.create()
+backend = OpenSandboxBackend()
 agent = create_deep_agent(model=model, tools=tools, backend=backend)
 ```
 

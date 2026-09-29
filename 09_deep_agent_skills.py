@@ -16,7 +16,7 @@ Run:
     docker build -t opensandbox-server . && docker run -d --rm -p 8080:8080 \\
         -v /var/run/docker.sock:/var/run/docker.sock \\
         -e OPENSANDBOX_INSECURE_SERVER=YES --name opensandbox opensandbox-server
-    OPENSANDBOX_USE_SERVER_PROXY=1 uv run --env-file .env python 09_deep_agent_skills.py
+    uv run --env-file .env python 09_deep_agent_skills.py
 """
 
 import os
@@ -70,7 +70,7 @@ def main() -> None:
         api_key=os.getenv("DEEPSEEK_API_KEY"),
     )
 
-    backend = OpenSandboxBackend.create()  # python:3.12-slim, 30 min lifetime
+    backend = OpenSandboxBackend()  # python:3.12-slim, 10 min lifetime
     print("Sandbox:", backend.id)
 
     try:
@@ -104,7 +104,7 @@ def main() -> None:
         report = backend.download_files(["/workspace/reports/orders.md"])[0]
         print("\nReport fetched from the sandbox:\n" + report.content.decode())
     finally:
-        backend.close()
+        backend.sandbox.destroy()
         print("\nSandbox destroyed.")
 
 
