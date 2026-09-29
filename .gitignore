@@ -1,0 +1,19 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Workshop page 5 artifacts
+big_sheet.csv
+*service-account*.json
+credentials.json
+token.json
+
+# Secrets
+.env
