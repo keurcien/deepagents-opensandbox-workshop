@@ -101,19 +101,19 @@ The backend reads its connection settings from the environment. Put them in
 |---|---|---|
 | `OPENSANDBOX_DOMAIN` | `localhost:8080` | `host:port` of the server |
 | `OPENSANDBOX_API_KEY` | unset | Sent when the server has `server.api_key` |
-| `OPENSANDBOX_PROTOCOL` | `http` | `http` or `https` |
-
-Each one can also be passed as a keyword to `create()`, which takes precedence
-over the environment.
+| `OPENSANDBOX_USE_SERVER_PROXY` | unset | `1` when the server runs in Docker (see Dockerfile): sandbox traffic then goes through the server |
 
 ## Step 3: first contact
 
 ```python
 from opensandbox_backend import OpenSandboxBackend
 
-with OpenSandboxBackend.create() as backend:
+backend = OpenSandboxBackend.create()
+try:
     print(backend.id)
     print(backend.execute("uname -a && python3 --version").output)
+finally:
+    backend.close()
 ```
 
 What happens:
@@ -122,19 +122,19 @@ What happens:
    until the container's agent answers a health check. The first run pulls
    the image plus OpenSandbox's `execd` helper image and takes a minute or
    two. After that, a few seconds.
-2. The `with` block calls `close()` on exit, which destroys the container.
+2. `close()` destroys the container.
 
 Two timeouts are involved, and they are easy to confuse:
 
-- **Lifetime** is the `timeout` keyword on `create()`, 30 minutes by default
+- **Lifetime** is the `timeout` passed to `SandboxSync.create`, 30 minutes
   in this backend. When it elapses the server kills the sandbox on its own.
   This is the safety net for sandboxes you forgot to close.
-- **Ready timeout** is how long `create()` waits for the health check, 30
-  seconds by default in the SDK. Raise it with `ready_timeout=timedelta(...)`
+- **Ready timeout** is how long `SandboxSync.create` waits for the health
+  check, 30 seconds by default in the SDK. Pass `ready_timeout=timedelta(...)`
   if the first image pull is slow.
 
-Always close the backend in a `finally` or a `with`. Otherwise the container
-runs until its lifetime expires.
+Always close the backend in a `finally`. Otherwise the container runs until
+its lifetime expires.
 
 ## Step 4: what the agent can do with it
 
@@ -143,15 +143,16 @@ and Python snippets through `execute`.
 
 | Tool | Where it runs | Notes |
 |---|---|---|
-| `execute(command, timeout=)` | `commands.run` in the container | stdout and stderr merged in time order. A timeout kills the command and returns exit code -1. |
-| `upload_files([(path, bytes)])` | `files.write_files` | Creates parent directories. Reports per-file errors instead of raising. |
-| `download_files([path])` | `files.read_bytes` | A missing file comes back as `error="file_not_found"`. |
+| `execute(command, timeout=)` | `commands.run` in the container | stdout then stderr, one line per message. A timeout kills the command and returns exit code -1. |
+| `upload_files([(path, bytes)])` | `files.write_files` | The SDK creates parent directories. |
+| `download_files([path])` | `files.read_bytes` | A missing file raises; a production backend would return `error="file_not_found"` instead. |
 | `ls`, `read`, `write`, `edit`, `grep`, `glob` | derived by deepagents | Shell and Python one-liners, so the image must have `python3`. |
 
 Try the whole surface once:
 
 ```python
-with OpenSandboxBackend.create() as backend:
+backend = OpenSandboxBackend.create()
+try:
     backend.upload_files([
         ("/workspace/data/a.txt", b"line1\nline2\n"),
         ("/workspace/data/b.txt", b"x=1\n"),
@@ -162,6 +163,8 @@ with OpenSandboxBackend.create() as backend:
     print(backend.glob("**/*.txt", path="/workspace"))
     print(backend.edit("/workspace/data/b.txt", "x=1", "x=2"))
     print(backend.execute("cat /workspace/data/b.txt").output)   # x=2
+finally:
+    backend.close()
 ```
 
 Every method has an `a`-prefixed async twin (`aexecute`, `aread`, ...), which
@@ -201,18 +204,22 @@ can watch the offload and the `execute` call happen.
 
 ## Step 6: customizing the sandbox
 
-`create()` forwards unknown keywords to `SandboxSync.create`. The useful ones:
+`create()` only takes an image. For anything else, call the SDK yourself and
+wrap the result, which is all `create()` does:
 
 ```python
 from datetime import timedelta
+from opensandbox import SandboxSync
 
-backend = OpenSandboxBackend.create(
+sandbox = SandboxSync.create(
     "python:3.12-slim",                 # any image with python3
+    connection_config=config,           # same ConnectionConfigSync as in create()
     timeout=timedelta(hours=2),         # lifetime
     ready_timeout=timedelta(minutes=3), # patience for the first pull
     env={"PYTHONUNBUFFERED": "1"},      # environment inside the container
     metadata={"owner": "volcamp"},      # free-form labels, visible on the server
 )
+backend = OpenSandboxBackend(sandbox)
 ```
 
 Picking another image:

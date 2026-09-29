@@ -46,12 +46,7 @@ def upload_skills(backend: OpenSandboxBackend, local_dir: Path, remote_dir: str)
         for path in sorted(local_dir.rglob("*"))
         if path.is_file() and "__pycache__" not in path.parts
     ]
-    uploaded = []
-    for response in backend.upload_files(files):
-        if response.error:
-            raise RuntimeError(f"upload failed for {response.path}: {response.error}")
-        uploaded.append(response.path)
-    return uploaded
+    return [response.path for response in backend.upload_files(files)]
 
 
 def print_trace(messages) -> None:
@@ -107,10 +102,7 @@ def main() -> None:
         # 3. The report was written by the skill's script, inside the container.
         #    Pull it back to prove the conventions were followed.
         report = backend.download_files(["/workspace/reports/orders.md"])[0]
-        if report.error:
-            print("\nNo report found:", report.error)
-        else:
-            print("\nReport fetched from the sandbox:\n" + report.content.decode())
+        print("\nReport fetched from the sandbox:\n" + report.content.decode())
     finally:
         backend.close()
         print("\nSandbox destroyed.")

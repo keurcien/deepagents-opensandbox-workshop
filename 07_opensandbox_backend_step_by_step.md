@@ -3,29 +3,27 @@
 Page 6 offloaded a 100 000-row tool result into an in-memory filesystem. The
 model could page through it, but nothing more. Page 7 swaps that filesystem for
 a real container, which gives the model a shell. This guide builds the backend
-in `opensandbox_backend.py` one method at a time. Each step ends with a check
-you can run.
+in `opensandbox_backend.py` one method at a time. The whole file is about
+fifty lines.
 
 ## 0. Prerequisites
 
-An OpenSandbox server, running locally on port 8080:
+An OpenSandbox server on port 8080, started with the repo's Dockerfile:
 
 ```bash
-uvx opensandbox-server init-config ~/.sandbox.toml --example docker
-OPENSANDBOX_INSECURE_SERVER=YES uvx opensandbox-server   # or set server.api_key in the toml
+docker build -t opensandbox-server . && docker run -d --rm -p 8080:8080 \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -e OPENSANDBOX_INSECURE_SERVER=YES --name opensandbox opensandbox-server
 ```
 
-The SDK in the project:
-
-```bash
-uv add opensandbox
-```
+Because the server runs in a container, clients must set
+`OPENSANDBOX_USE_SERVER_PROXY=1` so sandbox traffic goes through the server.
 
 ## 1. Know the contract before writing code
 
-deepagents ships an abstract class, `BaseSandbox`. You implement four things and
-it derives everything else (ls, read, write, edit, grep, glob) by running shell
-and Python snippets through your `execute`.
+deepagents ships an abstract class, `BaseSandbox`. You implement four members
+and it derives everything else (ls, read, write, edit, grep, glob) by running
+shell and Python snippets through your `execute`.
 
 ```python
 class BaseSandbox(SandboxBackendProtocol, ABC):
@@ -43,12 +41,9 @@ class BaseSandbox(SandboxBackendProtocol, ABC):
     def download_files(self, paths: list[str]) -> list[FileDownloadResponse]: ...
 ```
 
-Two consequences worth saying out loud:
-
-- The container image must have `python3`. `read` and `glob` are Python scripts
-  executed inside the sandbox. `python:3.12-slim` is the default for that reason.
-- `upload_files` and `download_files` must never raise. They report per-file
-  errors in the response objects so the model can recover.
+One consequence worth saying out loud: the container image must have
+`python3`, because `read` and `glob` are Python scripts executed inside the
+sandbox. `python:3.12-slim` is the default for that reason.
 
 Check: open the source and confirm the four abstract methods.
 
@@ -58,33 +53,22 @@ grep -n "@abstractmethod" -A2 .venv/lib/python3.11/site-packages/deepagents/back
 
 ## 2. Create a sandbox and expose its id
 
-Start with the skeleton. Connection settings come from the environment so the
-same code works against a local server or a hosted one.
+Connection settings come from the environment so the same code works against
+a local server or a hosted one.
 
 ```python
-import os
-from datetime import timedelta
-
-from deepagents.backends.sandbox import BaseSandbox
-from opensandbox import SandboxSync
-from opensandbox.config import ConnectionConfigSync
-
-DEFAULT_IMAGE = "python:3.12-slim"
-
-
 class OpenSandboxBackend(BaseSandbox):
     def __init__(self, sandbox: SandboxSync) -> None:
         self._sandbox = sandbox
 
     @classmethod
-    def create(cls, image: str = DEFAULT_IMAGE, *, timeout=timedelta(minutes=30), **create_kwargs):
+    def create(cls, image: str = "python:3.12-slim") -> "OpenSandboxBackend":
         config = ConnectionConfigSync(
             domain=os.getenv("OPENSANDBOX_DOMAIN", "localhost:8080"),
             api_key=os.getenv("OPENSANDBOX_API_KEY"),
-            protocol=os.getenv("OPENSANDBOX_PROTOCOL", "http"),
+            use_server_proxy=os.getenv("OPENSANDBOX_USE_SERVER_PROXY") == "1",
         )
-        sandbox = SandboxSync.create(image, connection_config=config, timeout=timeout, **create_kwargs)
-        return cls(sandbox)
+        return cls(SandboxSync.create(image, connection_config=config, timeout=timedelta(minutes=30)))
 
     def close(self) -> None:
         self._sandbox.destroy()
@@ -96,115 +80,51 @@ class OpenSandboxBackend(BaseSandbox):
 
 `SandboxSync.create` blocks until the container answers a health check. The
 `timeout` is the sandbox lifetime, after which the server kills it on its own.
-Python will refuse to instantiate the class until the other three abstract
-methods exist, so for this check call the SDK directly:
+The first run pulls two images and takes a while. After that, about ten
+seconds.
 
-```python
-from opensandbox import SandboxSync
-from opensandbox.config import ConnectionConfigSync
-
-sb = SandboxSync.create("python:3.12-slim", connection_config=ConnectionConfigSync(domain="localhost:8080", protocol="http"))
-print(sb.id)
-sb.destroy()
-```
-
-The first run pulls two images and takes a while. After that, about ten seconds.
-
-## 3. `execute`: run a command and normalize the result
+## 3. `execute`: run a command, hand back one text and an exit code
 
 The SDK call is `self._sandbox.commands.run(command, opts=...)`. It returns an
-`Execution` with `logs.stdout`, `logs.stderr`, `exit_code` and `error`.
+`Execution` with `logs.stdout`, `logs.stderr` and `exit_code`.
 
 ```python
-from deepagents.backends.protocol import ExecuteResponse
-from opensandbox.exceptions import SandboxException
-from opensandbox.models.execd import RunCommandOpts
-
     def execute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
         opts = RunCommandOpts(timeout=timedelta(seconds=timeout)) if timeout else None
-        try:
-            execution = self._sandbox.commands.run(command, opts=opts)
-        except SandboxException as exc:
-            return ExecuteResponse(output=f"{type(exc).__name__}: {exc}", exit_code=1)
-
-        messages = sorted(
-            [*execution.logs.stdout, *execution.logs.stderr],
-            key=lambda m: m.timestamp,
-        )
-        output = "\n".join(m.text.rstrip("\n") for m in messages)
-
-        exit_code = execution.exit_code
-        if exit_code is None:
-            if execution.error:
-                output += f"\n[error] {execution.error.name}: {execution.error.value}"
-                exit_code = 1
-            else:
-                exit_code = 0
-        return ExecuteResponse(output=output, exit_code=exit_code)
+        execution = self._sandbox.commands.run(command, opts=opts)
+        lines = [m.text for m in execution.logs.stdout] + [m.text for m in execution.logs.stderr]
+        return ExecuteResponse(output="\n".join(lines), exit_code=execution.exit_code or 0)
 ```
 
-Three details that are easy to get wrong:
+Two details that are easy to get wrong:
 
-- stdout and stderr are separate lists. Merge them by timestamp or the model
-  sees all errors after all output.
+- stdout and stderr are separate lists of messages. The model needs a single
+  string, so concatenate them. (Each message carries a timestamp if you want
+  to interleave them in production.)
 - Each message is one line **without** its trailing newline. Join with `"\n"`.
   Joining with `""` glues lines together and silently breaks deepagents' grep
-  and glob parsers, which read the output line by line. This bug was found
-  while building this page.
-- A non-zero exit sets both `exit_code` and an `error` named
-  `CommandExecError`. Only append the error text when there is no exit code,
-  otherwise every failing command gets a redundant `[error]` line.
+  and glob parsers, which read the output line by line.
 
-Check, once the two stubs below exist so the class can be instantiated:
+Check:
 
 ```python
 r = backend.execute("echo hello; echo err >&2; exit 3")
 print(repr(r.output), r.exit_code)     # 'hello\nerr' 3
-print(backend.execute("sleep 5", timeout=1).exit_code)   # -1, killed by the server
 ```
 
-## 4. `upload_files`: write bytes, create parents, never raise
+## 4. `upload_files`: bytes in
 
-The SDK writes with `files.write_files([WriteEntry(...)])`. Two things the
-contract asks for that the SDK does not do on its own: create the parent
-directory, and catch errors per file.
+The SDK writes with `files.write_files([WriteEntry(...)])` and creates parent
+directories on its own.
 
 ```python
-import posixpath
-from deepagents.backends.protocol import FileUploadResponse
-from opensandbox.models.filesystem import WriteEntry
-
     def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
-        responses = []
-        for path, content in files:
-            try:
-                parent = posixpath.dirname(path)
-                if parent and parent != "/":
-                    self._sandbox.files.create_directories([WriteEntry(path=parent)])
-                self._sandbox.files.write_files([WriteEntry(path=path, data=content, mode=644)])
-                responses.append(FileUploadResponse(path=path))
-            except Exception as exc:
-                responses.append(FileUploadResponse(path=path, error=_error_code(exc)))
-        return responses
+        self._sandbox.files.write_files([WriteEntry(path=path, data=data) for path, data in files])
+        return [FileUploadResponse(path=path) for path, _ in files]
 ```
 
-`WriteEntry.mode` defaults to 755. Pass 644 for data files.
-
-`_error_code` maps SDK exceptions onto the four literals deepagents
-understands: `file_not_found`, `permission_denied`, `is_directory`,
-`invalid_path`. Anything else falls back to the exception text.
-
-```python
-def _error_code(exc: Exception) -> str:
-    text = str(exc).lower()
-    if "no such file" in text or "not found" in text or "404" in text:
-        return "file_not_found"
-    if "permission" in text or "403" in text:
-        return "permission_denied"
-    if "is a directory" in text:
-        return "is_directory"
-    return f"{type(exc).__name__}: {exc}"
-```
+This is what backs the `write_file` and `edit_file` tools: content never goes
+through the shell, so quoting and command-length limits are not a concern.
 
 Check:
 
@@ -213,42 +133,41 @@ print(backend.upload_files([("/workspace/data/a.txt", b"line1\nline2\n")]))
 # [FileUploadResponse(path='/workspace/data/a.txt', error=None)]
 ```
 
-## 5. `download_files`: read bytes, report missing files
+## 5. `download_files`: bytes out
 
 ```python
-from deepagents.backends.protocol import FileDownloadResponse
-
     def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
-        responses = []
-        for path in paths:
-            try:
-                content = self._sandbox.files.read_bytes(path)
-                responses.append(FileDownloadResponse(path=path, content=content))
-            except Exception as exc:
-                responses.append(FileDownloadResponse(path=path, error=_error_code(exc)))
-        return responses
+        return [FileDownloadResponse(path=path, content=self._sandbox.files.read_bytes(path)) for path in paths]
 ```
 
-Check. A missing file must come back as an error object, not an exception:
+deepagents uses this at startup to read `SKILL.md` and `AGENTS.md` files
+(pages 9 and beyond), and you use it yourself to pull results out of the
+container. The model's own `read_file` calls do not go through here: `read`
+runs a Python snippet via `execute` so only the requested page crosses the
+wire.
+
+Check:
 
 ```python
-print(backend.download_files(["/workspace/data/a.txt", "/nope.txt"]))
-# [... content=b'line1\nline2\n' ..., FileDownloadResponse(path='/nope.txt', content=None, error='file_not_found')]
+print(backend.download_files(["/workspace/data/a.txt"])[0].content)   # b'line1\nline2\n'
 ```
 
 ## 6. The derived tools come for free
 
-Nothing more to write. `BaseSandbox` now provides the rest. Run the whole
-surface once to be sure the image and the output format cooperate:
+Nothing more to write. Run the whole surface once to be sure the image and
+the output format cooperate:
 
 ```python
-with OpenSandboxBackend.create() as backend:          # add __enter__/__exit__ calling close()
+backend = OpenSandboxBackend.create()
+try:
     backend.upload_files([("/workspace/data/a.txt", b"line1\nline2\n"), ("/workspace/data/b.txt", b"x=1\n")])
     print(backend.ls("/workspace/data"))
     print(backend.read("/workspace/data/a.txt"))
     print(backend.grep("line", path="/workspace/data"))
     print(backend.glob("**/*.txt", path="/workspace"))
     print(backend.edit("/workspace/data/b.txt", "x=1", "x=2"))
+finally:
+    backend.close()
 ```
 
 If `grep` returns one match whose text contains a NUL byte, or `glob` complains
@@ -278,13 +197,11 @@ Only the two resulting numbers entered the context window.
 Always destroy the sandbox in a `finally`, or the container lives until the
 lifetime `timeout` expires.
 
-## Recap of the gotchas
+## What a production backend adds
 
-| Symptom | Cause | Fix |
-|---|---|---|
-| Server refuses to start | No `server.api_key` in `~/.sandbox.toml` | Set one, or `OPENSANDBOX_INSECURE_SERVER=YES` locally |
-| `read` or `glob` fail with a Python error | Image has no `python3` | Use `python:3.12-slim` or install it |
-| grep matches contain `\x00`, glob "unexpected output" | Output lines joined with `""` | Join messages with `"\n"` |
-| Every failing command ends with `[error] CommandExecError` | Error appended even when exit code is known | Append only when `exit_code is None` |
-| Upload fails on a new directory | SDK does not create parents | `create_directories` before `write_files` |
-| Model sees an exception traceback on a missing file | `download_files` raised | Return `error="file_not_found"` instead |
+This version lets SDK exceptions propagate. The contract expects
+`upload_files` and `download_files` to report per-file errors in the response
+objects (`error="file_not_found"` and so on) rather than raise, so the model
+can recover from a bad path. `execute` should likewise turn a transport error
+into an `ExecuteResponse` with a non-zero exit code. That is bookkeeping, not
+concept, so it stays out of the workshop.
