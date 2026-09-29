@@ -13,6 +13,11 @@ async def main():
 
     async with MCPAdapter(mcp_config) as adapter:
         tools = await adapter.list_tools()
+        # read_wiki_contents returns a whole wiki (1.2 MB for facebook/react) in a
+        # single SSE event, above the MCP client's 1 MiB cap, which surfaces as
+        # "SSE stream ended without a response". The other tools return small
+        # answers, so leave the big dump out.
+        tools = [tool for tool in tools if tool.name != "read_wiki_contents"]
         agent = create_agent(model=model, tools=tools)
 
         response = await agent.ainvoke({"messages": [{"role": "user", "content": "what is react about?"}]})
