@@ -8,7 +8,7 @@
 # mount the host's Docker socket.
 #
 #   docker build -t opensandbox-server .
-#   docker run --rm -p 8080:8080 \
+#   docker run --rm -p 7431:8080 \
 #     -v /var/run/docker.sock:/var/run/docker.sock \
 #     -e OPENSANDBOX_INSECURE_SERVER=YES \
 #     opensandbox-server

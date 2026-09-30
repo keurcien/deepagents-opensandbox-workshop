@@ -1,0 +1,39 @@
+# Workshop services:
+#   opensandbox  OpenSandbox server, http://localhost:7431 (pages 8 to 12)
+#   mcp          orders MCP server, http://localhost:7432/mcp (DuckDB)
+#
+#   docker compose up --build -d
+#   docker compose logs -f
+#   docker compose down
+services:
+  opensandbox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Sandboxes are launched on Docker's default bridge network, and the server
+    # can only reach them from inside that network. The compose project network
+    # would isolate it from them.
+    network_mode: bridge
+    ports:
+      - "7431:8080"
+    environment:
+      OPENSANDBOX_INSECURE_SERVER: "YES"
+    volumes:
+      # The server asks the host's Docker daemon to run sandboxes.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # SQLite store (sandbox and snapshot records).
+      - opensandbox-data:/root/.opensandbox
+    restart: unless-stopped
+
+  mcp:
+    build:
+      context: .
+      dockerfile: volcamp/mcp/Dockerfile
+    ports:
+      - "7432:7432"
+    environment:
+      PORT: "7432"
+    restart: unless-stopped
+
+volumes:
+  opensandbox-data:

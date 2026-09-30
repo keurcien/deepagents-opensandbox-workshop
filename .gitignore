@@ -9,11 +9,13 @@ wheels/
 # Virtual environments
 .venv
 
-# Workshop page 5 artifacts
-big_sheet.csv
+# Workshop credentials
 *service-account*.json
 credentials.json
 token.json
 
 # Secrets
 .env
+
+# Page 10 output
+sales_analysis.pptx
