@@ -1,11 +1,16 @@
-"""Page 11: a deep agent that executes commands in an OpenSandbox container.
+"""Page 10: a deep agent that executes commands in an OpenSandbox container.
 
 No MCP server, no spreadsheet. The agent gets a shell inside a container and a
 task it cannot answer without running code in it. Watch the `execute` calls go
 by and note how little of the generated data ever reaches the model.
 
 Run:
-    uv run --env-file .env python exercices/11_deep_agent_opensandbox_execute.py
+    uv run --env-file .env python exercices/10_deep_agent_opensandbox_execute.py
+
+Success: The agent computes 50,000 rows, country totals and a largest order in code;
+the trace does not contain the whole CSV.
+
+Challenge: Have Python independently verify that the country counts sum to 50,000.
 """
 
 import importlib
@@ -18,6 +23,7 @@ from langchain_openai import ChatOpenAI
 # The module name starts with a digit, so a plain `import` cannot name it.
 OpenSandboxBackend = importlib.import_module("09_opensandbox_backend").OpenSandboxBackend
 from volcamp.pretty import print_messages
+from volcamp.progress import LiveProgress
 
 # TODO 1: write the task. It must force the agent to run code: generate a CSV at
 #         /workspace/orders.csv (50 000 rows, columns order_id / country / amount,
@@ -44,10 +50,11 @@ async def main() -> None:
         #         should prefer commands printing only the numbers it needs.
         agent = ...
 
-        response = await agent.ainvoke(
-            {"messages": [{"role": "user", "content": PROMPT}]},
-            config={"recursion_limit": 60},
-        )
+        with LiveProgress() as progress:
+            response = await agent.ainvoke(
+                {"messages": [{"role": "user", "content": PROMPT}]},
+                config={"callbacks": [progress], "recursion_limit": 60},
+            )
 
         print_messages(response, max_chars=400)
 

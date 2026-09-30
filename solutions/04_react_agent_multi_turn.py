@@ -7,6 +7,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain.mcp import MCPAdapter
 
 from volcamp.pretty import print_messages
+from volcamp.progress import LiveProgress
 
 async def main():
 
@@ -22,11 +23,13 @@ async def main():
         tools = await adapter.list_tools()
         agent = create_agent(model=model, tools=tools, checkpointer=checkpointer)
 
-        first_turn_response = await agent.ainvoke({"messages": [{"role": "user", "content": "Which city has the highest total sales amount, and what is that total?"}]}, config=config)
+        with LiveProgress() as progress:
+            first_turn_response = await agent.ainvoke({"messages": [{"role": "user", "content": "Which city has the highest total sales amount, and what is that total?"}]}, config={**config, "callbacks": [progress]})
 
         print_messages(first_turn_response)
 
-        second_turn_response = await agent.ainvoke({"messages": [{"role": "user", "content": "what did i ask you about?"}]}, config=config)
+        with LiveProgress() as progress:
+            second_turn_response = await agent.ainvoke({"messages": [{"role": "user", "content": "what did i ask you about?"}]}, config={**config, "callbacks": [progress]})
 
         # The checkpointer replays the whole thread: skip what was already printed.
         print_messages(second_turn_response, skip=len(first_turn_response["messages"]))

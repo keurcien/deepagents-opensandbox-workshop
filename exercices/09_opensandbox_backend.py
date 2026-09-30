@@ -13,6 +13,10 @@ implement. The sync ones are abstract in BaseSandbox and only stubbed.
 Talks to the OpenSandbox server on localhost:7431 (sandbox traffic is
 proxied through the server). A sandbox lives 10 minutes unless
 destroyed earlier with `await backend.sandbox.destroy()`.
+
+Success: Page 10 can execute a command through the backend and destroy its sandbox.
+
+Challenge: Explain why a virtual filesystem alone cannot execute Python.
 """
 
 from deepagents.backends.protocol import ExecuteResponse, FileDownloadResponse, FileUploadResponse

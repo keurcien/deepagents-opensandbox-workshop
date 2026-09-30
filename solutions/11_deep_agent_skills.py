@@ -1,6 +1,6 @@
-"""Page 12: a deep agent with skills injected into the sandbox.
+"""Page 11: a deep agent with skills injected into the sandbox.
 
-Page 11 gave the agent a shell. Here it also gets a skills library: a directory
+Page 10 gave the agent a shell. Here it also gets a skills library: a directory
 of `<skill-name>/SKILL.md` files, each optionally bundling helper scripts. The
 library lives on this machine under ./skills and is uploaded into the
 container before the agent starts, so the model can both read the instructions
@@ -13,7 +13,7 @@ csv-report, ignore release-notes, then run the bundled script instead of
 reinventing the report.
 
 Run:
-    uv run --env-file .env python solutions/12_deep_agent_skills.py
+    uv run --env-file .env python solutions/11_deep_agent_skills.py
 """
 
 import importlib
@@ -27,6 +27,7 @@ from langchain_openai import ChatOpenAI
 # The module name starts with a digit, so a plain `import` cannot name it.
 OpenSandboxBackend = importlib.import_module("09_opensandbox_backend").OpenSandboxBackend
 from volcamp.pretty import print_messages
+from volcamp.progress import LiveProgress
 
 LOCAL_SKILLS_DIR = Path(__file__).resolve().parent.parent / "skills"  # ../skills, shared by exercices/ and solutions/
 SANDBOX_SKILLS_DIR = "/skills"
@@ -78,10 +79,11 @@ async def main() -> None:
             ),
         )
 
-        response = await agent.ainvoke(
-            {"messages": [{"role": "user", "content": PROMPT}]},
-            config={"recursion_limit": 60},
-        )
+        with LiveProgress() as progress:
+            response = await agent.ainvoke(
+                {"messages": [{"role": "user", "content": PROMPT}]},
+                config={"callbacks": [progress], "recursion_limit": 60},
+            )
 
         print_messages(response, max_chars=400)
 

@@ -4,6 +4,7 @@ from langchain_openai import ChatOpenAI
 from langchain.tools import tool
 
 from volcamp.pretty import print_messages
+from volcamp.progress import LiveProgress
 
 model = ChatOpenAI(model="deepseek-flash", base_url="https://api.deepseek.com", api_key=os.getenv("DEEPSEEK_API_KEY"))
 
@@ -19,6 +20,7 @@ def add(x: int, y: int):
 
 agent = create_agent(model=model, tools=[greet, add])
 
-response = agent.invoke({"messages": [{"role": "user", "content": "how much is 1 + 10"}]})
+with LiveProgress() as progress:
+    response = agent.invoke({"messages": [{"role": "user", "content": "Use the add tool to calculate 1 + 10"}]}, config={"callbacks": [progress]})
 
 print_messages(response)

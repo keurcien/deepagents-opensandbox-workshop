@@ -1,11 +1,16 @@
-"""Page 5: a tool result that does not fit in the context window.
+"""Page 5: an oversized tool result, deliberately fetched in full.
 
-Goal: with the same MCP server as pages 3 and 4, ask the agent to SELECT * the
-whole 100 000-row table in one call. Watch it fail: a plain react agent pastes
-every tool result verbatim into the context.
+Goal: request all 100 000 rows before locating one order. This intentionally
+bad baseline can exceed the model's context window. The live trace survives
+failure. A context rejection is expected, but depends on the model; a timeout,
+authentication error or rate limit is a setup problem, not the lesson.
 
 Run:
     uv run --env-file .env python exercices/05_react_agent_context_overflow.py
+
+Success: The trace shows the full-table query and its result before any context rejection.
+
+Challenge: Explain why a filtered SQL query would avoid this artificial failure.
 """
 
 import os
@@ -13,8 +18,10 @@ import asyncio
 from langchain.agents import create_agent
 from langchain_openai import ChatOpenAI
 from langchain.mcp import MCPAdapter
+from openai import BadRequestError
 
 from volcamp.pretty import print_messages
+from volcamp.progress import LiveProgress
 
 async def main():
 
@@ -28,18 +35,26 @@ async def main():
 
         agent = create_agent(model=model, tools=tools)
 
-        # TODO 1: write a prompt that makes the agent run `SELECT * FROM orders`
-        #         through execute_sql with limit=100000 (every row in one call),
-        #         forbid aggregations (no GROUP BY, count() or sum()), and ask for
-        #         the row count and the total of the 'amount' column.
+        # TODO 1: ask for SELECT * FROM orders ORDER BY id with limit=100000 in
+        #         exactly one execute_sql call, then locate order id 99999 and
+        #         report its date, city, product and amount. Forbid filtered SQL
+        #         and further SQL calls. Page 6 supplies the comparison prompt.
         prompt = ...
 
         try:
-            response = await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]})
-        except Exception as e:
-            print(f"\nAgent failed: {type(e).__name__}: {e}\n")
-            # TODO 2: explain in one or two printed lines why this failed and what
-            #         the next pages do differently (hint: page 6).
+            with LiveProgress() as progress:
+                response = await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]}, config={"callbacks": [progress]})
+        except BadRequestError as e:
+            # Only explain a confirmed context rejection as context overflow.
+            # Other failures retain their traceback and nonzero exit status.
+            message = str(e).lower()
+            if e.code != "context_length_exceeded" and not any(
+                phrase in message for phrase in ("maximum context length", "context window exceeded")
+            ):
+                raise
+            print("\nExpected context-limit rejection: the raw tool result was too large.")
+            # TODO 2: explain why offloading supports selective retrieval, but does
+            #         not make reading every row or doing arithmetic reliable.
             return
 
         # Look at the size of the tool result in the panel title.

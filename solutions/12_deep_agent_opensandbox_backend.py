@@ -1,16 +1,3 @@
-"""Page 10: a real container as the agent's filesystem.
-
-Goal: page 7 offloaded the tool result to an in-memory filesystem. Here the
-deep agent gets the OpenSandbox container of page 8 instead, which also gives
-it a shell. Data still comes from the MCP server of pages 3 to 7; the container
-is where the agent builds something with it: a 2-slide deck, pulled back to
-this machine at the end.
-Fill in `09_opensandbox_backend.py` first (page 9), then plug it in here.
-
-Run:
-    uv run --env-file .env python exercices/10_deep_agent_opensandbox_backend.py
-"""
-
 import importlib
 import os
 import asyncio
@@ -23,6 +10,7 @@ from langchain.mcp import MCPAdapter
 # The module name starts with a digit, so a plain `import` cannot name it.
 OpenSandboxBackend = importlib.import_module("09_opensandbox_backend").OpenSandboxBackend
 from volcamp.pretty import print_messages
+from volcamp.progress import LiveProgress
 
 DECK_IN_SANDBOX = "/workspace/sales_analysis.pptx"
 DECK_ON_HOST = Path(__file__).resolve().parent.parent / "sales_analysis.pptx"
@@ -47,18 +35,17 @@ async def main():
 
     mcp_config = {"mcpServers": {"volcamp_mcp": {"url": "http://localhost:7432/mcp"}}}
 
-    # TODO 1: create the backend with `await OpenSandboxBackend.create()` (this starts
-    #         a python:3.12-slim container) and print its id.
-    backend = ...
+    backend = await OpenSandboxBackend.create()  # starts a python:3.12-slim container
+    print("Sandbox:", backend.id)
 
     try:
         async with MCPAdapter(mcp_config) as adapter:
             tools = await adapter.list_tools()
 
-            # TODO 2: hand the backend to the deep agent (keyword argument `backend=`).
             agent = create_deep_agent(
                 model=model,
                 tools=tools,
+                backend=backend,
                 system_prompt=(
                     "You work inside a Linux container with a shell (execute tool) and a "
                     "filesystem. The sales data lives on an MCP server: query it with "
@@ -66,21 +53,21 @@ async def main():
                 ),
             )
 
-            response = await agent.ainvoke(
-                {"messages": [{"role": "user", "content": PROMPT}]},
-                config={"recursion_limit": 60},
-            )
+            with LiveProgress() as progress:
+                response = await agent.ainvoke(
+                    {"messages": [{"role": "user", "content": PROMPT}]},
+                    config={"callbacks": [progress], "recursion_limit": 60},
+                )
 
             print_messages(response, max_chars=300)
 
-        # TODO 3: the deck exists in the container, not on this machine. Download it
-        #         with `await backend.adownload_files([...])` and write its `.content`
-        #         to DECK_ON_HOST.
-        ...
+        # The deck exists in the container, not on this machine. Pull it back.
+        (deck,) = await backend.adownload_files([DECK_IN_SANDBOX])
+        DECK_ON_HOST.write_bytes(deck.content)
+        print(f"\nDownloaded {DECK_IN_SANDBOX} to {DECK_ON_HOST} ({len(deck.content):,} bytes)")
     finally:
-        # TODO 4: destroy the sandbox (`await backend.sandbox.destroy()`), otherwise the
-        #         container lives until its lifetime timeout.
-        ...
+        await backend.sandbox.destroy()  # otherwise the container lives until the lifetime timeout
+        print("Sandbox destroyed.")
 
 
 if __name__ == "__main__":

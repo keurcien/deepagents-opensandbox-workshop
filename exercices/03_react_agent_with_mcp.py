@@ -6,6 +6,10 @@ through DuckDB with two tools, get_table_info and execute_sql.
 
 Run:
     uv run --env-file .env python exercices/03_react_agent_with_mcp.py
+
+Success: The answer is Paris, with total sales of 13,986,204.84.
+
+Challenge: Ask for the top three cities and inspect the SQL used.
 """
 
 import os
@@ -15,6 +19,7 @@ from langchain_openai import ChatOpenAI
 from langchain.mcp import MCPAdapter
 
 from volcamp.pretty import print_messages
+from volcamp.progress import LiveProgress
 
 async def main():
 
@@ -33,7 +38,8 @@ async def main():
         agent = ...
 
         # MCP tools are async: use `ainvoke`, not `invoke`.
-        response = await agent.ainvoke({"messages": [{"role": "user", "content": "Which city has the highest total sales amount, and what is that total?"}]})
+        with LiveProgress() as progress:
+            response = await agent.ainvoke({"messages": [{"role": "user", "content": "Which city has the highest total sales amount, and what is that total?"}]}, config={"callbacks": [progress]})
 
         print_messages(response)
 

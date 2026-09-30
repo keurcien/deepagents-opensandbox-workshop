@@ -1,13 +1,19 @@
-"""Page 6: the same react agent, with middleware.
+"""Page 6: offload a large result and retrieve only what matters.
 
-Goal: a deep agent is nothing more than `create_agent` with a stack of
-middleware. Add one of them to the page 5 agent and watch the same SELECT *
-succeed: FilesystemMiddleware gives the agent ls / read_file / grep ... tools
-and evicts any tool result above 20 000 tokens to a virtual file (kept in the
-agent state) that the model reads in chunks.
+Goal: add FilesystemMiddleware to the page 5 agent. Large tool results are
+saved to a virtual file in agent state (default threshold: roughly 20 000
+tokens). The agent can search that file and read a small relevant portion.
+Offloading does not compute totals or make reading all 100 000 rows efficient.
+For a real order lookup, use a WHERE clause in SQL; this forced full-table
+fetch exists only to demonstrate context management.
 
 Run:
     uv run --env-file .env python exercices/06_react_agent_with_middleware.py
+
+Success: The trace shows offloading, a targeted file lookup, and order 99999:
+2025-01-21, Lyon, webcam, 47.24.
+
+Challenge: Compare how much data the model sees with page 5; do not read the full file.
 """
 
 import os
@@ -18,6 +24,7 @@ from langchain.mcp import MCPAdapter
 # TODO 1: import FilesystemMiddleware from `deepagents.middleware`.
 
 from volcamp.pretty import print_messages
+from volcamp.progress import LiveProgress
 
 async def main():
 
@@ -32,16 +39,20 @@ async def main():
         agent = create_agent(model=model, tools=tools)
 
         prompt = (
-            "Run exactly this query with execute_sql: SELECT * FROM orders, with limit=100000 "
-            "so that every row comes back in one call. Do not use GROUP BY, count() or sum(): "
-            "read the rows yourself, then tell me how many rows there are and the total of the "
-            "'amount' column."
+            "This is a deliberately inefficient context-management experiment. "
+            "First call execute_sql exactly once with SELECT * FROM orders ORDER BY id "
+            "and limit=100000. Do not filter the SQL query or make another SQL call. "
+            "Then find order id 99999 and report its date, city, product and amount. "
+            "If the result is saved to a file, search that file for the row starting "
+            "with [99999, and read only the matching line or a small surrounding window. "
+            "Do not read the entire file into context."
         )
 
-        response = await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]})
+        with LiveProgress() as progress:
+            response = await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]}, config={"callbacks": [progress]})
 
-        # Same agent as page 5, same prompt: now it survives. Look at the size of
-        # the execute_sql result, and at which tools the middleware added.
+        # Check for an offloaded result and a targeted file lookup. Avoid reading
+        # every row: filesystem tools support retrieval, not bulk computation.
         print_messages(response, max_chars=300)
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ from langchain.mcp import MCPAdapter
 from deepagents.middleware import FilesystemMiddleware
 
 from volcamp.pretty import print_messages
+from volcamp.progress import LiveProgress
 
 async def main():
 
@@ -22,16 +23,20 @@ async def main():
         agent = create_agent(model=model, tools=tools, middleware=[FilesystemMiddleware()])
 
         prompt = (
-            "Run exactly this query with execute_sql: SELECT * FROM orders, with limit=100000 "
-            "so that every row comes back in one call. Do not use GROUP BY, count() or sum(): "
-            "read the rows yourself, then tell me how many rows there are and the total of the "
-            "'amount' column."
+            "This is a deliberately inefficient context-management experiment. "
+            "First call execute_sql exactly once with SELECT * FROM orders ORDER BY id "
+            "and limit=100000. Do not filter the SQL query or make another SQL call. "
+            "Then find order id 99999 and report its date, city, product and amount. "
+            "If the result is saved to a file, search that file for the row starting "
+            "with [99999, and read only the matching line or a small surrounding window. "
+            "Do not read the entire file into context."
         )
 
-        response = await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]})
+        with LiveProgress() as progress:
+            response = await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]}, config={"callbacks": [progress]})
 
-        # Same plain react agent as page 5, same prompt: now it survives. Look at the
-        # size of the execute_sql result and at the tools the middleware added.
+        # Check for an offloaded result and a targeted file lookup. Avoid reading
+        # every row: filesystem tools support retrieval, not bulk computation.
         print_messages(response, max_chars=300)
 
 if __name__ == "__main__":
