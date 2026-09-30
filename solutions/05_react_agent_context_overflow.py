@@ -3,8 +3,10 @@ import asyncio
 from langchain.agents import create_agent
 from langchain_openai import ChatOpenAI
 from langchain.mcp import MCPAdapter
+from openai import BadRequestError
 
 from volcamp.pretty import print_messages
+from volcamp.progress import LiveProgress
 
 async def main():
 
@@ -19,21 +21,31 @@ async def main():
         agent = create_agent(model=model, tools=tools)
 
         prompt = (
-            "Run exactly this query with execute_sql: SELECT * FROM orders, with limit=100000 "
-            "so that every row comes back in one call. Do not use GROUP BY, count() or sum(): "
-            "read the rows yourself, then tell me how many rows there are and the total of the "
-            "'amount' column."
+            "This is a deliberately inefficient context-management experiment. "
+            "First call execute_sql exactly once with SELECT * FROM orders ORDER BY id "
+            "and limit=100000. Do not filter the SQL query or make another SQL call. "
+            "Then find order id 99999 and report its date, city, product and amount. "
+            "If the result is saved to a file, search that file for the row starting "
+            "with [99999, and read only the matching line or a small surrounding window. "
+            "Do not read the entire file into context."
         )
 
         try:
-            response = await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]})
-        except Exception as e:
-            print(f"\nAgent failed: {type(e).__name__}: {e}\n")
+            with LiveProgress() as progress:
+                response = await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]}, config={"callbacks": [progress]})
+        except BadRequestError as e:
+            # Only explain a confirmed context rejection as context overflow.
+            # Other failures retain their traceback and nonzero exit status.
+            message = str(e).lower()
+            if e.code != "context_length_exceeded" and not any(
+                phrase in message for phrase in ("maximum context length", "context window exceeded")
+            ):
+                raise
+            print("\nExpected context-limit rejection: the raw tool result was too large.")
             print(
-                "The tool result is pasted verbatim into the context window, and 100 000 rows\n"
-                "do not fit. A plain react agent has no mechanism to deal with this.\n"
-                "Next page: the same agent plus a middleware that offloads large tool\n"
-                "results to a filesystem and lets the model read them in chunks."
+                "Page 6 offloads the same result and retrieves just the requested row.\n"
+                "For real workloads, filter or aggregate in SQL; use sandboxed code\n"
+                "for computations over files. Offloading alone does not compute totals."
             )
             return
 

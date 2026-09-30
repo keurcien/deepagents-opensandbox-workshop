@@ -5,6 +5,7 @@ from langchain_openai import ChatOpenAI
 from langchain.mcp import MCPAdapter
 
 from volcamp.pretty import print_messages
+from volcamp.progress import LiveProgress
 
 async def main():
 
@@ -16,7 +17,8 @@ async def main():
         tools = await adapter.list_tools()
         agent = create_agent(model=model, tools=tools)
 
-        response = await agent.ainvoke({"messages": [{"role": "user", "content": "Which city has the highest total sales amount, and what is that total?"}]})
+        with LiveProgress() as progress:
+            response = await agent.ainvoke({"messages": [{"role": "user", "content": "Which city has the highest total sales amount, and what is that total?"}]}, config={"callbacks": [progress]})
 
         print_messages(response)
 

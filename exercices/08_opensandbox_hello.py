@@ -8,6 +8,11 @@ The SDK is async: every call on the sandbox is awaited. Printing an
 
 Run:
     uv run python exercices/08_opensandbox_hello.py
+
+Success: wc reports 1001 lines including the header; the intentional import fails;
+the sample downloads and the sandbox is destroyed.
+
+Challenge: Change the generator row count and predict the line count before running.
 """
 
 import asyncio
