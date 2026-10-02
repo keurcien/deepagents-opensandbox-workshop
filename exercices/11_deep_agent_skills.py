@@ -49,8 +49,8 @@ Then produce a report on that file, grouped by country, and tell me where it is.
 async def upload_skills(backend: OpenSandboxBackend, local_dir: Path, remote_dir: str) -> list[str]:
     """Copy every file under local_dir into the sandbox, preserving the layout."""
     # TODO 1: build the list of (remote_path, bytes) for every file under `local_dir`
-    #         (skip __pycache__), where remote_path = f"{remote_dir}/<path relative to local_dir>".
-    #         Then call `await backend.aupload_files(...)` and return the uploaded paths.
+    #         (skip __pycache__), keeping the same layout under `remote_dir`.
+    #         Then upload them through the backend and return the uploaded paths.
     ...
 
 
@@ -70,8 +70,7 @@ async def main() -> None:
         for path in await upload_skills(backend, LOCAL_SKILLS_DIR, SANDBOX_SKILLS_DIR):
             print("Uploaded:", path)
 
-        # TODO 2: point the agent at the skills directory inside the sandbox
-        #         (keyword argument `skills=[...]`).
+        # TODO 2: point the agent at the skills directory inside the sandbox.
         agent = create_deep_agent(
             model=model,
             backend=backend,
@@ -90,9 +89,9 @@ async def main() -> None:
 
         print_messages(response, max_chars=400)
 
-        # TODO 3: the report was written by the skill's script inside the container, at
-        #         /workspace/reports/orders.md. Fetch it with `await backend.adownload_files(...)`
-        #         and print it (the response has `.content` as bytes).
+        # TODO 3: the report was written by the skill's script inside the container.
+        #         Fetch it with the backend's download API (`await backend.adownload_files(...)`,
+        #         the response has `.content` as bytes) and print it.
         ...
     finally:
         await backend.sandbox.destroy()
