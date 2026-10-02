@@ -21,7 +21,7 @@ import asyncio
 from langchain.agents import create_agent
 from langchain_openai import ChatOpenAI
 from langchain.mcp import MCPAdapter
-# TODO 1: import FilesystemMiddleware from `deepagents.middleware`.
+# TODO 1: import FilesystemMiddleware.
 
 from volcamp.pretty import print_messages
 from volcamp.progress import LiveProgress
@@ -35,7 +35,7 @@ async def main():
     async with MCPAdapter(mcp_config) as adapter:
         tools = await adapter.list_tools()
 
-        # TODO 2: pass `middleware=[FilesystemMiddleware()]` to create_agent.
+        # TODO 2: add the middleware to the agent.
         agent = create_agent(model=model, tools=tools)
 
         prompt = (

@@ -58,8 +58,8 @@ async def main() -> None:
 
         print_messages(response, max_chars=400)
 
-        # TODO 3: the file exists in the container, not on this machine. Use
-        #         `await backend.aexecute(...)` to print its first 3 lines.
+        # TODO 3: the file exists in the container, not on this machine. Download it
+        #         through the backend and print its first 3 lines.
         ...
     finally:
         await backend.sandbox.destroy()  # otherwise the container lives until the lifetime timeout

@@ -29,8 +29,7 @@ async def main():
     # TODO 1: create an in-memory checkpointer.
     checkpointer = ...
 
-    # TODO 2: the config that identifies the conversation thread:
-    #         {"configurable": {"thread_id": "<any string>"}}
+    # TODO 2: the config that identifies the conversation thread.
     config = ...
 
     mcp_config = {"mcpServers": {"volcamp_mcp": {"url": "http://localhost:7432/mcp"}}}
@@ -41,8 +40,8 @@ async def main():
         # TODO 3: give the checkpointer to the agent.
         agent = create_agent(model=model, tools=tools)
 
-        # TODO 4: merge the thread config into both callback configs:
-        #         config={**config, "callbacks": [progress]}.
+        # TODO 4: merge the thread config into the config of both calls,
+        #         keeping the progress callback.
         with LiveProgress() as progress:
             first_turn_response = await agent.ainvoke({"messages": [{"role": "user", "content": "Which city has the highest total sales amount, and what is that total?"}]}, config={"callbacks": [progress]})
 

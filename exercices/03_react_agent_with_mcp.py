@@ -25,13 +25,11 @@ async def main():
 
     model = ChatOpenAI(model="deepseek-flash", base_url="https://api.deepseek.com", api_key=os.getenv("DEEPSEEK_API_KEY"))
 
-    # TODO 1: describe the MCP server. The shape is
-    #         {"mcpServers": {"<name>": {"url": "<streamable http url>"}}}
-    #         The workshop server is at http://localhost:7432/mcp
+    # TODO 1: describe the workshop MCP server (see the slide for its URL).
     mcp_config = ...
 
     async with MCPAdapter(mcp_config) as adapter:
-        # TODO 2: list the tools exposed by the server (async call on the adapter).
+        # TODO 2: list the tools exposed by the server.
         tools = ...
 
         # TODO 3: build the agent with these tools.

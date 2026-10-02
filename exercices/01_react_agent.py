@@ -23,9 +23,8 @@ model = ChatOpenAI(model="deepseek-flash", base_url="https://api.deepseek.com", 
 # TODO 1: create the agent from the model (no tools yet).
 agent = ...
 
-# TODO 2: invoke it with a single user message saying "hi".
-#         The input is a dict with a "messages" list of {"role": ..., "content": ...}.
-#         Pass config={"callbacks": [progress]} to see live progress.
+# TODO 2: invoke it with a single user message saying "hi", passing the live
+#         progress callback in the config.
 with LiveProgress() as progress:
     response = ...
 

@@ -26,7 +26,7 @@ model = ChatOpenAI(model="deepseek-flash", base_url="https://api.deepseek.com", 
 def greet(name: str):
     return f"Hi {name}, welcome to Volcamp"
 
-# TODO 2: write a second tool `add(x: int, y: int)` that returns x + y.
+# TODO 2: write a second tool, add, that returns the sum of two integers.
 ...
 
 # TODO 3: pass both tools to the agent.

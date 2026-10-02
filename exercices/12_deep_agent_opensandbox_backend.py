@@ -54,15 +54,15 @@ async def main():
 
     mcp_config = {"mcpServers": {"volcamp_mcp": {"url": "http://localhost:7432/mcp"}}}
 
-    # TODO 1: create the backend with `await OpenSandboxBackend.create()` (this starts
-    #         a python:3.12-slim container) and print its id.
+    # TODO 1: create the backend (this starts a python:3.12-slim container) and
+    #         print its id.
     backend = ...
 
     try:
         async with MCPAdapter(mcp_config) as adapter:
             tools = await adapter.list_tools()
 
-            # TODO 2: hand the backend to the deep agent (keyword argument `backend=`).
+            # TODO 2: hand the backend to the deep agent.
             agent = create_deep_agent(
                 model=model,
                 tools=tools,
@@ -82,12 +82,11 @@ async def main():
             print_messages(response, max_chars=300)
 
         # TODO 3: the deck exists in the container, not on this machine. Download it
-        #         with `await backend.adownload_files([...])` and write its `.content`
-        #         to DECK_ON_HOST.
+        #         and write it to DECK_ON_HOST.
         ...
     finally:
-        # TODO 4: destroy the sandbox (`await backend.sandbox.destroy()`), otherwise the
-        #         container lives until its lifetime timeout.
+        # TODO 4: destroy the sandbox, otherwise the container lives until its
+        #         lifetime timeout.
         ...
 
 

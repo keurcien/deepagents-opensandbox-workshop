@@ -34,10 +34,10 @@ async def main():
 
         agent = create_agent(model=model, tools=tools)
 
-        # TODO 1: ask for SELECT * FROM orders ORDER BY id with limit=100000 in
-        #         exactly one execute_sql call, then locate order id 99999 and
-        #         report its date, city, product and amount. Forbid filtered SQL
-        #         and further SQL calls. Page 6 supplies the comparison prompt.
+        # TODO 1: write a prompt that forces exactly one full-table execute_sql
+        #         call, then asks to locate order 99999 and report its date, city,
+        #         product and amount. Forbid filtered SQL and further SQL calls.
+        #         Page 6 supplies the comparison prompt.
         prompt = ...
 
         with LiveProgress() as progress:

@@ -34,9 +34,9 @@ class OpenSandboxBackend(BaseSandbox):
 
     @classmethod
     async def create(cls, image: str = "python:3.12-slim") -> "OpenSandboxBackend":  # the image must have python3
-        # TODO 1: create the sandbox with `await Sandbox.create(image, connection_config=OPENSANDBOX_SERVER_CONFIG)`
-        #         and return a backend wrapping it. (`Sandbox.create` is a coroutine, which is
-        #         why this is a classmethod and not `__init__`.)
+        # TODO 1: create the sandbox and return a backend wrapping it. (Creating a
+        #         sandbox is a coroutine, which is why this is a classmethod and
+        #         not `__init__`.)
         ...
 
     @property
@@ -45,21 +45,18 @@ class OpenSandboxBackend(BaseSandbox):
         ...
 
     async def aexecute(self, command: str) -> ExecuteResponse:
-        # TODO 3: run `command` with `await self.sandbox.commands.run(command)`. As on page 8,
-        #         `str(execution)` is stdout followed by `[stderr]` and `[error]` blocks, and
-        #         `execution.exit_code` is None when the command succeeded.
-        #         Return an ExecuteResponse(output=<str>, exit_code=<int>).
+        # TODO 3: run `command` in the sandbox and return its output and exit code
+        #         as an ExecuteResponse. Careful: the exit code is None on success.
         ...
 
     async def aupload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
-        # TODO 4: write every (path, data) pair with
-        #         `await self.sandbox.files.write_files([WriteEntry(path=..., data=...), ...])`
-        #         and return one FileUploadResponse(path=...) per file.
+        # TODO 4: write every (path, data) pair into the sandbox and return one
+        #         FileUploadResponse per file.
         ...
 
     async def adownload_files(self, paths: list[str]) -> list[FileDownloadResponse]:
-        # TODO 5: read each path with `await self.sandbox.files.read_bytes(path)` and return
-        #         one FileDownloadResponse(path=..., content=...) per path.
+        # TODO 5: read each path from the sandbox and return one FileDownloadResponse
+        #         per path.
         ...
 
     # BaseSandbox declares the sync members abstract, so they must exist. Nothing calls them under `ainvoke`.

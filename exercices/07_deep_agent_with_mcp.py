@@ -15,7 +15,7 @@ Challenge: Which added capabilities were actually useful for this simple lookup?
 
 import os
 import asyncio
-# TODO 1: import `create_deep_agent` from the `deepagents` package.
+# TODO 1: import create_deep_agent.
 from langchain_openai import ChatOpenAI
 from langchain.mcp import MCPAdapter
 

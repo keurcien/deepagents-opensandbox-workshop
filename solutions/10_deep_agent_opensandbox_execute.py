@@ -64,7 +64,8 @@ async def main() -> None:
         print_messages(response, max_chars=400)
 
         # The file exists in the container, not on this machine. Pull a sample back.
-        head = (await backend.aexecute("head -3 /workspace/orders.csv")).output
+        (csv_file,) = await backend.adownload_files(["/workspace/orders.csv"])
+        head = "\n".join(csv_file.content.decode().splitlines()[:3])
         print("\nFirst lines of the file, fetched from the sandbox:\n" + head)
     finally:
         await backend.sandbox.destroy()  # otherwise the container lives until the lifetime timeout

@@ -38,8 +38,8 @@ print("wrote /workspace/orders.csv")
 
 
 async def main() -> None:
-    # TODO 1: start a container from the "python:3.12-slim" image with
-    #         `await Sandbox.create(image, connection_config=OPENSANDBOX_SERVER_CONFIG)` and print its id.
+    # TODO 1: start a python:3.12-slim container through the OpenSandbox server
+    #         and print its id.
     sandbox = ...
 
     try:
@@ -48,8 +48,7 @@ async def main() -> None:
         print("\n$ uname -a && python3 --version")
         print(await sandbox.commands.run("uname -a && python3 --version"))
 
-        # TODO 2: copy SCRIPT into the container at /workspace/gen.py with
-        #         `await sandbox.files.write_files([WriteEntry(path=..., data=<bytes>)])`.
+        # TODO 2: copy SCRIPT into the container at /workspace/gen.py.
         ...
 
         # Run it inside the container. The 1000-row CSV never leaves the container.
@@ -64,11 +63,11 @@ async def main() -> None:
         print("\n$ python3 -c 'import nope'")
         print(await sandbox.commands.run("python3 -c 'import nope'"))
 
-        # TODO 4: print the first 3 lines of /workspace/orders.csv with `head -n 3`.
+        # TODO 4: print the first 3 lines of /workspace/orders.csv with a shell command.
         ...
     finally:
-        # TODO 5: destroy the sandbox (`await sandbox.destroy()`), otherwise the
-        #         container lives until its lifetime timeout (10 minutes).
+        # TODO 5: destroy the sandbox, otherwise the container lives until its
+        #         lifetime timeout (10 minutes).
         ...
 
 
