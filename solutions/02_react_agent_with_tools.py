@@ -11,7 +11,7 @@ model = ChatOpenAI(model="deepseek-flash", base_url="https://api.deepseek.com", 
 @tool
 def greet(name: str):
     """Greet someone with his name."""
-    return f"Hi {name}"
+    return f"Hi {name}, welcome to Volcamp"
 
 @tool
 def add(x: int, y: int):

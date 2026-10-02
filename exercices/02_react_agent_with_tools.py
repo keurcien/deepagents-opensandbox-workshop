@@ -24,7 +24,7 @@ model = ChatOpenAI(model="deepseek-flash", base_url="https://api.deepseek.com", 
 # TODO 1: turn this function into a tool with the `@tool` decorator and give it
 #         a one-line docstring describing what it does.
 def greet(name: str):
-    return f"Hi {name}"
+    return f"Hi {name}, welcome to Volcamp"
 
 # TODO 2: write a second tool `add(x: int, y: int)` that returns x + y.
 ...
