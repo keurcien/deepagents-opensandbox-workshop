@@ -51,10 +51,8 @@ async def main() -> None:
         print("\n$ python3 -c 'import nope'")
         print(await sandbox.commands.run("python3 -c 'import nope'"))
 
-        content = await sandbox.files.read_bytes("/workspace/orders.csv")
-        head = content.decode().splitlines()[:3]
-        print("\nFirst lines of orders.csv, read back from the container:")
-        print("\n".join("  " + line for line in head))
+        print("\n$ head -n 3 /workspace/orders.csv")
+        print(await sandbox.commands.run("head -n 3 /workspace/orders.csv"))
     finally:
         await sandbox.destroy()
         print("\nSandbox destroyed.")

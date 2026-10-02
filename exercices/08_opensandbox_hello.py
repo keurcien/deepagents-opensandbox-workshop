@@ -10,7 +10,7 @@ Run:
     uv run --env-file .env python exercices/08_opensandbox_hello.py
 
 Success: ls shows gen.py and orders.csv in /workspace; the intentional import fails;
-the sample downloads and the sandbox is destroyed.
+the first three CSV lines print and the sandbox is destroyed.
 
 Challenge: Change the CSV filename in the generator and check that ls reflects it.
 """
@@ -64,8 +64,7 @@ async def main() -> None:
         print("\n$ python3 -c 'import nope'")
         print(await sandbox.commands.run("python3 -c 'import nope'"))
 
-        # TODO 4: read /workspace/orders.csv back with `await sandbox.files.read_bytes(path)`
-        #         and print its first 3 lines.
+        # TODO 4: print the first 3 lines of /workspace/orders.csv with a shell command.
         ...
     finally:
         # TODO 5: destroy the sandbox (`await sandbox.destroy()`), otherwise the
