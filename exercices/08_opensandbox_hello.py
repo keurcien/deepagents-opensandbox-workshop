@@ -23,7 +23,7 @@ from opensandbox.models.filesystem import WriteEntry
 
 # The server address comes from OPEN_SANDBOX_DOMAIN in .env (e.g. http://localhost:7431).
 # The server runs in Docker, so sandbox traffic is proxied through it.
-SERVER = ConnectionConfig(use_server_proxy=True)
+OPENSANDBOX_SERVER_CONFIG = ConnectionConfig(use_server_proxy=True)
 
 SCRIPT = """\
 import csv, random
@@ -39,7 +39,7 @@ print("wrote /workspace/orders.csv")
 
 async def main() -> None:
     # TODO 1: start a container from the "python:3.12-slim" image with
-    #         `await Sandbox.create(image, connection_config=SERVER)` and print its id.
+    #         `await Sandbox.create(image, connection_config=OPENSANDBOX_SERVER_CONFIG)` and print its id.
     sandbox = ...
 
     try:

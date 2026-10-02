@@ -18,7 +18,6 @@ import asyncio
 from langchain.agents import create_agent
 from langchain_openai import ChatOpenAI
 from langchain.mcp import MCPAdapter
-from openai import BadRequestError
 
 from volcamp.pretty import print_messages
 from volcamp.progress import LiveProgress
@@ -41,21 +40,8 @@ async def main():
         #         and further SQL calls. Page 6 supplies the comparison prompt.
         prompt = ...
 
-        try:
-            with LiveProgress() as progress:
-                response = await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]}, config={"callbacks": [progress]})
-        except BadRequestError as e:
-            # Only explain a confirmed context rejection as context overflow.
-            # Other failures retain their traceback and nonzero exit status.
-            message = str(e).lower()
-            if e.code != "context_length_exceeded" and not any(
-                phrase in message for phrase in ("maximum context length", "context window exceeded")
-            ):
-                raise
-            print("\nExpected context-limit rejection: the raw tool result was too large.")
-            # TODO 2: explain why offloading supports selective retrieval, but does
-            #         not make reading every row or doing arithmetic reliable.
-            return
+        with LiveProgress() as progress:
+            response = await agent.ainvoke({"messages": [{"role": "user", "content": prompt}]}, config={"callbacks": [progress]})
 
         # Look at the size of the tool result in the panel title.
         print_messages(response, max_chars=300)

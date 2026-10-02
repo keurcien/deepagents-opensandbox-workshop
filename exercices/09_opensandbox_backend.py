@@ -26,7 +26,7 @@ from opensandbox.config import ConnectionConfig
 from opensandbox.models.filesystem import WriteEntry
 
 # The server address comes from OPEN_SANDBOX_DOMAIN in .env (e.g. http://localhost:7431).
-SERVER = ConnectionConfig(use_server_proxy=True)
+OPENSANDBOX_SERVER_CONFIG = ConnectionConfig(use_server_proxy=True)
 
 class OpenSandboxBackend(BaseSandbox):
     def __init__(self, sandbox: Sandbox) -> None:
@@ -34,7 +34,7 @@ class OpenSandboxBackend(BaseSandbox):
 
     @classmethod
     async def create(cls, image: str = "python:3.12-slim") -> "OpenSandboxBackend":  # the image must have python3
-        # TODO 1: create the sandbox with `await Sandbox.create(image, connection_config=SERVER)`
+        # TODO 1: create the sandbox with `await Sandbox.create(image, connection_config=OPENSANDBOX_SERVER_CONFIG)`
         #         and return a backend wrapping it. (`Sandbox.create` is a coroutine, which is
         #         why this is a classmethod and not `__init__`.)
         ...
