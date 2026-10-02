@@ -7,7 +7,7 @@ The SDK is async: every call on the sandbox is awaited. Printing an
 `Execution` shows its stdout, a `[stderr]` block, and the exit code on failure.
 
 Run:
-    uv run python solutions/08_opensandbox_hello.py
+    uv run --env-file .env python solutions/08_opensandbox_hello.py
 """
 
 import asyncio
@@ -16,8 +16,9 @@ from opensandbox import Sandbox
 from opensandbox.config import ConnectionConfig
 from opensandbox.models.filesystem import WriteEntry
 
+# The server address comes from OPEN_SANDBOX_DOMAIN in .env (e.g. http://localhost:7431).
 # The server runs in Docker, so sandbox traffic is proxied through it.
-SERVER = ConnectionConfig(domain="localhost:7431", use_server_proxy=True)
+SERVER = ConnectionConfig(use_server_proxy=True)
 
 SCRIPT = """\
 import csv, random

@@ -10,8 +10,8 @@ The OpenSandbox SDK is async, and so are the scripts that use this backend
 (`aexecute`, `aupload_files`, `adownload_files`), so those are the ones to
 implement. The sync ones are abstract in BaseSandbox and only stubbed.
 
-Talks to the OpenSandbox server on localhost:7431 (sandbox traffic is
-proxied through the server). A sandbox lives 10 minutes unless
+Talks to the OpenSandbox server named by OPEN_SANDBOX_DOMAIN in .env
+(sandbox traffic is proxied through the server). A sandbox lives 10 minutes unless
 destroyed earlier with `await backend.sandbox.destroy()`.
 
 Success: Page 10 can execute a command through the backend and destroy its sandbox.
@@ -25,7 +25,8 @@ from opensandbox import Sandbox
 from opensandbox.config import ConnectionConfig
 from opensandbox.models.filesystem import WriteEntry
 
-SERVER = ConnectionConfig(domain="localhost:7431", use_server_proxy=True)
+# The server address comes from OPEN_SANDBOX_DOMAIN in .env (e.g. http://localhost:7431).
+SERVER = ConnectionConfig(use_server_proxy=True)
 
 class OpenSandboxBackend(BaseSandbox):
     def __init__(self, sandbox: Sandbox) -> None:
