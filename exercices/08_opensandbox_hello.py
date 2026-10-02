@@ -64,7 +64,7 @@ async def main() -> None:
         print("\n$ python3 -c 'import nope'")
         print(await sandbox.commands.run("python3 -c 'import nope'"))
 
-        # TODO 4: print the first 3 lines of /workspace/orders.csv with a shell command.
+        # TODO 4: print the first 3 lines of /workspace/orders.csv with `head -n 3`.
         ...
     finally:
         # TODO 5: destroy the sandbox (`await sandbox.destroy()`), otherwise the
