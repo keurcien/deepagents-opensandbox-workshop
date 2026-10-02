@@ -9,10 +9,10 @@ The SDK is async: every call on the sandbox is awaited. Printing an
 Run:
     uv run --env-file .env python exercices/08_opensandbox_hello.py
 
-Success: wc reports 1001 lines including the header; the intentional import fails;
+Success: ls shows gen.py and orders.csv in /workspace; the intentional import fails;
 the sample downloads and the sandbox is destroyed.
 
-Challenge: Change the generator row count and predict the line count before running.
+Challenge: Change the CSV filename in the generator and check that ls reflects it.
 """
 
 import asyncio
@@ -56,8 +56,8 @@ async def main() -> None:
         print("\n$ python3 /workspace/gen.py")
         print(await sandbox.commands.run("python3 /workspace/gen.py"))
 
-        # TODO 3: ask the container how many lines the CSV has, without reading the
-        #         file on this machine.
+        # TODO 3: list the contents of /workspace with a shell command, without
+        #         touching the filesystem on this machine.
         ...
 
         # A failing command: where does the traceback go, what is the exit code?
