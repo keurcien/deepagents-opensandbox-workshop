@@ -45,8 +45,8 @@ async def main() -> None:
         print("\n$ python3 /workspace/gen.py")
         print(await sandbox.commands.run("python3 /workspace/gen.py"))
 
-        print("\n$ wc -l < /workspace/orders.csv")
-        print(await sandbox.commands.run("wc -l < /workspace/orders.csv"))
+        print("\n$ ls /workspace")
+        print(await sandbox.commands.run("ls /workspace"))
 
         print("\n$ python3 -c 'import nope'")
         print(await sandbox.commands.run("python3 -c 'import nope'"))
