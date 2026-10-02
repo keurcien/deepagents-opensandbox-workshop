@@ -31,7 +31,9 @@ The challenges are optional extensions.
 
 ```bash
 uv sync --frozen
-# Create .env with DEEPSEEK_API_KEY=your-key (do not commit it).
+# Create .env (do not commit it) with:
+#   DEEPSEEK_API_KEY=your-key
+#   OPEN_SANDBOX_DOMAIN=http://localhost:7431
 docker compose up --build -d
 # Pull the sandbox image before the session rather than during page 8.
 docker pull python:3.12-slim
@@ -39,7 +41,8 @@ docker pull python:3.12-slim
 
 Pages 3–7 and 12 use the MCP server at `http://localhost:7432/mcp`. It serves the
 checked-in `volcamp/mcp/orders.csv` (100,000 rows) through DuckDB. Pages 8–12 need
-the OpenSandbox server at `http://localhost:7431`.
+the OpenSandbox server; the SDK reads its address from `OPEN_SANDBOX_DOMAIN` in `.env`
+(`http://localhost:7431` with the Compose setup), so run those pages with `--env-file .env`.
 
 Run these smoke checks before starting the exercises:
 
@@ -49,7 +52,7 @@ uv run --env-file .env python solutions/01_react_agent.py
 # MCP discovery, SQL and model tool calls
 uv run --env-file .env python solutions/03_react_agent_with_mcp.py
 # Sandbox creation, execution, upload, download and cleanup; no model needed
-uv run python solutions/08_opensandbox_hello.py
+uv run --env-file .env python solutions/08_opensandbox_hello.py
 ```
 
 Page 8 intentionally runs `import nope`: that command should fail, and the script
