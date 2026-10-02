@@ -17,7 +17,6 @@ import asyncio
 from langchain.agents import create_agent
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import InMemorySaver
-from langchain_core.runnables import RunnableConfig
 from langchain.mcp import MCPAdapter
 
 from volcamp.pretty import print_messages
@@ -32,7 +31,7 @@ async def main():
 
     # TODO 2: the config that identifies the conversation thread:
     #         {"configurable": {"thread_id": "<any string>"}}
-    config: RunnableConfig = ...
+    config = ...
 
     mcp_config = {"mcpServers": {"volcamp_mcp": {"url": "http://localhost:7432/mcp"}}}
 
