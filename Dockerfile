@@ -9,6 +9,7 @@
 #
 #   docker build -t opensandbox-server .
 #   docker run --rm -p 7431:8080 \
+#     --add-host=host.docker.internal:host-gateway \
 #     -v /var/run/docker.sock:/var/run/docker.sock \
 #     -e OPENSANDBOX_INSECURE_SERVER=YES \
 #     opensandbox-server
@@ -26,7 +27,15 @@ FROM opensandbox/server:release-${OPENSANDBOX_VERSION}
 # The base image ships a Kubernetes config. Replace it with the packaged Docker
 # example, listening on all interfaces so the port can be published.
 RUN opensandbox-server init-config /etc/opensandbox/config.toml --example docker --force \
-    && sed -i 's/^host = "127.0.0.1"/host = "0.0.0.0"/' /etc/opensandbox/config.toml
+    && sed -i 's/^host = "127.0.0.1"/host = "0.0.0.0"/' /etc/opensandbox/config.toml \
+    && sed -i 's/^mode = "dns"/mode = "dns+nft"/' /etc/opensandbox/config.toml \
+    && sed -i '/^\[docker\]$/a host_ip = "host.docker.internal"' /etc/opensandbox/config.toml
+
+# Credential Vault needs nftables enforcement as well as DNS filtering.
+# The packaged config pins the egress image; only sandboxes created with a
+# network_policy start that sidecar. Existing pages without a policy are unchanged.
+# The egress readiness probe uses a host-published port even when the SDK uses
+# the server proxy. From this container, that host is not localhost.
 
 # SQLite store (sandbox and snapshot records).
 VOLUME ["/root/.opensandbox"]

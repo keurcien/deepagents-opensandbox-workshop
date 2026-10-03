@@ -14,6 +14,9 @@ services:
     # can only reach them from inside that network. The compose project network
     # would isolate it from them.
     network_mode: bridge
+    extra_hosts:
+      # Egress readiness probes reach ports published by the host Docker daemon.
+      - "host.docker.internal:host-gateway"
     ports:
       - "7431:8080"
     environment:

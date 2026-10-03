@@ -82,6 +82,9 @@ execution and skills exercises so participants first learn each part separately.
 | 11 | Reusable skills | Agent reads `csv-report`, runs its script and produces the expected report |
 | 12 | Final presentation | A downloaded, readable two-slide deck with a native chart and verified numbers |
 
+An optional [Credential Vault bonus](#optional-credential-vault-bonus) follows
+the twelve core pages. It is a complete example, not another fill-in exercise.
+
 Pages 5–7 deliberately request all rows **before looking up one order**. In a
 real application, use `WHERE id = 99999`. This artificial restriction isolates
 the context-management lesson:
@@ -159,3 +162,91 @@ is forcibly stopped, its sandbox may remain until the lifetime timeout.
 Page 12 downloads `sales_analysis.pptx` into the repository root. Open it and
 verify both slides, chart labels and numbers against the SQL trace; existence
 alone is not an artifact-quality check.
+
+## Optional Credential Vault bonus
+
+The simplest integration is to configure an OpenSandbox sandbox first, then
+wrap it with the existing `OpenSandboxBackend(sandbox)`. The vault lives in the
+egress sidecar: no secret file is mounted into deepagents and no new middleware
+or credential-reading tool is needed. The host writes a credential and a scoped
+binding; the agent runs normal HTTPS requests through `execute`, and the sidecar
+injects authentication into matching requests.
+
+See [the complete example](solutions/13_deep_agent_credential_vault.py). Its core is:
+
+```python
+sandbox = await Sandbox.create(
+    "python:3.12-slim",
+    connection_config=SERVER,
+    network_policy=NetworkPolicy(
+        defaultAction="deny",
+        egress=[NetworkRule(action="allow", target="api.github.com")],
+    ),
+    credential_proxy=CredentialProxyConfig(enabled=True),
+)
+try:
+    await sandbox.credential_vault.create(
+        credentials=[Credential(name="github", source={"value": host_token})],
+        bindings=[CredentialBinding(
+            name="profile",
+            match={"schemes": ["https"], "hosts": ["api.github.com"],
+                   "methods": ["GET"], "paths": ["/user"]},
+            auth={"type": "bearer", "credential": "github"},
+        )],
+    )
+    agent = create_deep_agent(model=model, backend=OpenSandboxBackend(sandbox))
+    # Invoke the agent here, while the sandbox and vault are alive.
+finally:
+    await sandbox.destroy()
+```
+
+The Dockerfile enables `[egress].mode = "dns+nft"`, required by Credential Vault;
+the packaged server config already selects an egress image. The installed SDK
+supports `credential_proxy` and `sandbox.credential_vault`, so no dependency
+upgrade is needed. The containerized server also uses `docker.host_ip` and the
+Compose `host-gateway` alias to reach the sidecar's published health port. SDK
+`use_server_proxy=True` alone does not configure that readiness probe.
+Rebuild the server before trying the example:
+
+```bash
+docker compose up --build -d opensandbox
+docker pull opensandbox/egress:v1.1.7
+docker pull python:3.12-slim
+
+# Synthetic token only; no .env, model call or GitHub credential needed.
+uv run python solutions/13_deep_agent_credential_vault.py --smoke-test
+
+# Add WORKSHOP_GITHUB_TOKEN to your host .env, alongside DEEPSEEK_API_KEY.
+# Use a dedicated token that can read your GitHub profile; no repo scope is needed.
+uv run --env-file .env python solutions/13_deep_agent_credential_vault.py
+```
+
+The smoke test uses `https://httpbin.org/bearer`, verifies authentication, deletes
+the vault, and verifies that the same endpoint now returns HTTP 401. It prints
+only the check results. Never use a real token with that echo service.
+The agent example calls GitHub's `GET /user` and reports the login and profile URL.
+Both paths destroy the sandbox even if vault initialization or execution fails.
+Use `--server localhost:17431` to test against a separate server instance.
+
+Keep these boundaries explicit:
+
+- The network policy allows a **host**; the binding adds authentication only for
+  the specified HTTPS method/path. Other requests to an allowed host can still
+  pass through without injected credentials.
+- The host-side model and MCP calls do not run through this proxy. In this
+  workshop, `DEEPSEEK_API_KEY` stays with `ChatOpenAI` on the host; only code
+  executed inside the sandbox receives vault-backed outbound authentication.
+- OpenSandbox bootstraps its proxy CA into the sandbox trust configuration.
+  Leave TLS verification enabled. If creation fails in `dns+nft` mode, check
+  the egress logs and Docker's nftables support; do not fall back to passing
+  plaintext tokens into sandbox environment variables or files.
+- Vault data is in memory in the sidecar. A replacement/restarted sidecar needs
+  the trusted host to provision it again. This bonus creates a fresh sandbox
+  each time and does not implement persistent secret storage or rotation.
+- The destination receives the real credential. Scope it to a trusted API that
+  does not echo authentication into response bodies; do not assume arbitrary
+  upstream response bodies will be scrubbed.
+
+Upstream references: [Credential Vault guide](https://github.com/opensandbox-group/OpenSandbox/blob/release-1.1.0/docs/guides/credential-vault.md),
+[server configuration](https://github.com/opensandbox-group/OpenSandbox/blob/release-1.1.0/server/opensandbox_server/examples/example.config.toml),
+and [sandbox CA bootstrap](https://github.com/opensandbox-group/OpenSandbox/blob/release-1.1.0/components/execd/bootstrap.sh).
